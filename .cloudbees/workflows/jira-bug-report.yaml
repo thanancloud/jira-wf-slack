@@ -66,13 +66,18 @@ jobs:
             head -n 50 bug_report.txt
           fi
 
-      - name: Upload bug reports as artifacts
-        uses: cloudbees-io/upload-artifact@v1
-        with:
-          name: jira-bug-reports-${{ cloudbees.scm_sha_short }}
-          path: |
-            bug_report.json
-            bug_report.txt
+     - name: Publish workflow evidence item
+       uses: cloudbees-io/publish-evidence-item@v1
+       with:
+        content: |-
+          ## Jira Bug Report Generated
+          
+          **Workflow Version**: ${{cloudbees.version}}
+          **Timestamp**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          Reports generated successfully:
+          - bug_report.json
+          - bug_report.txt
 
       - name: Archive reports with timestamp
         uses: docker://golang:1.20.3-alpine3.17
