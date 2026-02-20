@@ -26,21 +26,25 @@ jobs:
           aws-region: us-east-1
 
       - name: Verify AWS credentials
+        uses: docker://amazon/aws-cli:2.33.26
+        shell: sh
         run: |
           aws sts get-caller-identity
           echo "✅ Successfully authenticated to AWS"
 
       - name: Set up Python
-        uses: cloudbees-io/configure-python@v1
+        uses: docker://python:3.15.0a6
         with:
           python-version: '3.13'
 
       - name: Install Python dependencies
+        uses: docker://python:3.15.0a6
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Run Jira Bug Summarizer
+        uses: docker://python:3.15.0a6
         env:
           JIRA_URL: https://cloudbees.atlassian.net
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
@@ -53,6 +57,7 @@ jobs:
           echo "✅ Bug report generation completed"
 
       - name: Display report summary
+        uses: docker://golang:1.20.3-alpine3.17
         run: |
           echo "📊 Generated Reports:"
           if [ -f bug_report.json ]; then
@@ -74,6 +79,7 @@ jobs:
             bug_report.txt
 
       - name: Archive reports with timestamp
+        uses: docker://golang:1.20.3-alpine3.17
         run: |
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
           mkdir -p reports_archive
