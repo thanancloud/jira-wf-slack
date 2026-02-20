@@ -22,7 +22,7 @@ jobs:
       - name: Configure AWS credentials via OIDC
         uses: cloudbees-io/configure-aws-credentials@v1
         with:
-          role-to-assume: arn:aws:iam::ACCOUNT_ID:role/infra-claude-bedrock-ci
+          role-to-assume: arn:aws:iam::${{ vars.ACCOUNT_ID }}:role/infra-claude-bedrock-ci
           aws-region: us-east-1
 
       - name: Verify AWS credentials
