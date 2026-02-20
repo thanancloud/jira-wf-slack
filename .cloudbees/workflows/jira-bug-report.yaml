@@ -3,12 +3,7 @@ kind: workflow
 name: Jira Bug Aging Report
 
 on:
- # schedule:
-    # Run every Monday at 9:00 AM UTC
-  #  - cron: '0 9 * * 1'
-  # Allow manual trigger
   workflow_dispatch:
-  # Optional: Run on push to main
   push:
     branches:
       - main
@@ -32,19 +27,19 @@ jobs:
           aws sts get-caller-identity
           echo "✅ Successfully authenticated to AWS"
 
-      - name: Set up Python
-        uses: docker://python:3.15.0a6
-        with:
-          python-version: '3.13'
+      # FIX: Remove "Set up Python" step - Python 3.15 is already in the image
+      # Docker images come with Python pre-installed
 
       - name: Install Python dependencies
         uses: docker://python:3.15.0a6
+        shell: sh  # ✅ ADDED: Explicit shell directive
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Run Jira Bug Summarizer
         uses: docker://python:3.15.0a6
+        shell: sh  # ✅ ADDED: Explicit shell directive
         env:
           JIRA_URL: https://cloudbees.atlassian.net
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
@@ -58,6 +53,7 @@ jobs:
 
       - name: Display report summary
         uses: docker://golang:1.20.3-alpine3.17
+        shell: sh  # ✅ ADDED: Explicit shell directive
         run: |
           echo "📊 Generated Reports:"
           if [ -f bug_report.json ]; then
@@ -80,6 +76,7 @@ jobs:
 
       - name: Archive reports with timestamp
         uses: docker://golang:1.20.3-alpine3.17
+        shell: sh  # ✅ ADDED: Explicit shell directive
         run: |
           TIMESTAMP=$(date +%Y%m%d_%H%M%S)
           mkdir -p reports_archive
