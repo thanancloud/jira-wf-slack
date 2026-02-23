@@ -29,15 +29,7 @@ jobs:
           aws sts get-caller-identity
           echo "✅ Successfully authenticated to AWS"
 
-      # FIX: Remove "Set up Python" step - Python 3.15 is already in the image
-      # Docker images come with Python pre-installed
-
-      - name: Install Python dependencies
-        uses: docker://python:3.13
-        shell: sh  # ✅ ADDED: Explicit shell directive
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+    
 
       - name: Run Jira Bug Summarizer
         uses: docker://python:3.13
@@ -49,6 +41,10 @@ jobs:
           AWS_REGION: us-east-1
           BEDROCK_MODEL_ID: us.anthropic.claude-sonnet-4-5-20250929-v1:0
         run: |
+          echo "Setting up environment..."
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
           echo "Starting Jira Bug Summarizer..."
           python jira_bug_summarizer.py
           echo "✅ Bug report generation completed"
