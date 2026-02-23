@@ -20,6 +20,7 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::${{ secrets.ACCOUNT_ID }}:role/infra-claude-bedrock-ci
           aws-region: us-east-1
+          role-duration-seconds: 1200
 
       - name: Verify AWS credentials
         uses: docker://amazon/aws-cli:2.33.26
