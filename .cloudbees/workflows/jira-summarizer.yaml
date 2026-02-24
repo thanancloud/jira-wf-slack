@@ -1,0 +1,94 @@
+apiVersion: automation.cloudbees.io/v1alpha1
+kind: workflow
+name: jira-bug-aging-report
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  generate-bug-report:
+    steps:
+      - name: Checkout code
+        uses: cloudbees-io/checkout@v1
+
+      - name: Configure AWS credentials via OIDC
+        uses: cloudbees-io/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/infra-claude-bedrock-ci
+          aws-region: us-east-1
+
+      - name: Verify AWS credentials
+        uses: docker://amazon/aws-cli:2.33.26
+        shell: sh
+        run: |
+          aws sts get-caller-identity
+          echo "✅ Successfully authenticated to AWS"
+
+      - name: Install Python dependencies
+        uses: docker://python:3.15.0a6
+        shell: sh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Jira Bug Summarizer
+        uses: docker://python:3.15.0a6
+        shell: sh
+        env:
+          JIRA_URL: https://cloudbees.atlassian.net
+          JIRA_EMAIL: ${{ vars.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          AWS_REGION: us-east-1
+          BEDROCK_MODEL_ID: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+          AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ env.AWS_SESSION_TOKEN }}
+        run: |
+          echo "Starting Jira Bug Summarizer..."
+          python jira_bug_summarizer.py
+          echo "✅ Bug report generation completed"
+
+      - name: Display report summary
+        uses: docker://golang:1.20.3-alpine3.17
+        shell: sh
+        run: |
+          echo "📊 Generated Reports:"
+          if [ -f bug_report.json ]; then
+            echo "✅ bug_report.json ($(wc -l < bug_report.json) lines)"
+          fi
+          if [ -f bug_report.txt ]; then
+            echo "✅ bug_report.txt"
+            echo ""
+            echo "📄 Report Preview (first 50 lines):"
+            head -n 50 bug_report.txt
+          fi
+
+      - name: Publish workflow evidence item
+        uses: cloudbees-io/publish-evidence-item@v1
+        with:
+          content: |-
+            ## Jira Bug Report Generated
+            
+            **Workflow Version**: ${{cloudbees.version}}
+            **Timestamp**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+            
+            Reports generated successfully:
+            - bug_report.json
+            - bug_report.txt
+
+      - name: Archive reports with timestamp
+        uses: docker://golang:1.20.3-alpine3.17
+        shell: sh
+        run: |
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          mkdir -p reports_archive
+          if [ -f bug_report.json ]; then
+            cp bug_report.json reports_archive/bug_report_${TIMESTAMP}.json
+          fi
+          if [ -f bug_report.txt ]; then
+            cp bug_report.txt reports_archive/bug_report_${TIMESTAMP}.txt
+          fi
+          echo "✅ Reports archived with timestamp: ${TIMESTAMP}"
