@@ -1,39 +1,36 @@
 apiVersion: automation.cloudbees.io/v1alpha1
 kind: workflow
 name: Jira Bug Aging Report
-
 on:
   workflow_dispatch:
-  
+    inputs:
+      JIRA_JQL:
+        type: string
+        default: labels = qa_automation AND type = Bug AND status != Done AND status != Rejected
+        required: true
 permissions:
-  id-token: write   # This is required to request the JWT
-  contents: read    # This is required for actions/checkout
-
+  id-token: write
+  contents: read
 jobs:
   generate-bug-report:
     steps:
       - name: Checkout code
         uses: cloudbees-io/checkout@v1
-
       - name: Configure AWS credentials via OIDC
         uses: cloudbees-io/configure-aws-credentials@v1
         with:
           role-to-assume: arn:aws:iam::${{ secrets.ACCOUNT_ID }}:role/infra-claude-bedrock-ci
           aws-region: us-east-1
           role-duration-seconds: 1200
-
       - name: Verify AWS credentials
         uses: docker://amazon/aws-cli:2.33.26
         shell: sh
         run: |
           aws sts get-caller-identity
           echo "✅ Successfully authenticated to AWS"
-
-    
-
       - name: Run Jira Bug Summarizer
         uses: docker://python:3.13
-        shell: sh  # ✅ ADDED: Explicit shell directive
+        shell: sh
         env:
           JIRA_URL: https://cloudbees.atlassian.net
           JIRA_EMAIL: ${{ vars.JIRA_EMAIL }}
@@ -44,15 +41,14 @@ jobs:
           echo "Setting up environment..."
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          
+
           echo "Starting Jira Bug Summarizer..."
           python jira_bug_summarizer.py
           echo "✅ Bug report generation completed"
-
       - name: Display report summary
         uses: docker://golang:1.20.3-alpine3.17
         id: reports
-        shell: sh  
+        shell: sh
         run: |
           cat bug_report.txt > "$CLOUDBEES_OUTPUTS/report"
           echo "📊 Generated Reports:"
@@ -65,11 +61,7 @@ jobs:
             echo "📄 Report Preview (first 50 lines):"
             head -n 50 bug_report.txt
           fi
-
       - name: Publish workflow evidence item
         uses: cloudbees-io/publish-evidence-item@v1
         with:
-         content: |-
-          ${{ steps.reports.outputs.report }}
-
-     
+          content: ${{ steps.reports.outputs.report }}
