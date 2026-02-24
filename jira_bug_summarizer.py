@@ -90,7 +90,7 @@ class JiraBugSummarizer:
             print(f"Error getting team field ID: {e}")
             return None
 
-    def fetch_bugs(self, jql: str, max_results: int = 5) -> List:
+    def fetch_bugs(self, jql: str, max_results: int = 20) -> List:
         """Fetch bugs from Jira using JQL query"""
         print(f"Fetching bugs with JQL: {jql}")
         try:

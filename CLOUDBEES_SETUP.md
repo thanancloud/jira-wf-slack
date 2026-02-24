@@ -82,12 +82,33 @@ Add these secrets to your CloudBees repository:
 
 ### Expected Output:
 ```
-✅ Successfully authenticated to AWS
-✅ Bug report generation completed
-📊 Generated Reports:
-  - bug_report.json
-  - bug_report.txt
+==================================================
+Starting Jira Bug Summarizer
+==================================================
+Fetching bugs with JQL: labels = qa_automation AND type = Bug AND status != Done AND status != Rejected
+Found Atlassian Team field: Team (ID: customfield_12000)
+Found 5 bugs
+
+Processing CBP-33505...
+  - Found 4 comments
+  - Generated summary
+  - Bug data structured ✓
+
+...
+
+==================================================
+All bug data saved to bug_report.json
+==================================================
+
+Formatting bug report table...
+✅ Report saved to bug_report.txt
+
+==================================================
+Completed! Processed 5 bugs
+==================================================
 ```
+
+**Note:** If you see `"Atlassian Team field not found, will use components/labels"`, the team names will fall back to components or labels.
 
 ---
 
@@ -107,6 +128,16 @@ After successful execution:
    # View text report
    cat bug_report.txt
    ```
+
+3. **Report Features:**
+   - **Main Table:** Bug details with Teams column (e.g., "CBP Ninja", "CBP Core UI")
+   - **Comment Summaries:** Separate table with AI-generated summaries for each ticket
+   - **Sorting:** Bugs automatically sorted by priority (Highest to Lowest)
+   - **Statistics:** Aging breakdown with color-coded indicators
+   - **JSON Output:** Structured data including `team_name`, comments, and summaries
+
+4. **Team Field:**
+   The script automatically detects the Atlassian Team field (`customfield_12000`) and displays team names. If issues don't have teams assigned, it will show "N/A" or fall back to components/labels.
 
 ---
 
@@ -148,6 +179,17 @@ on:
 BEDROCK_MODEL_ID: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 ```
 
+### Team field showing "N/A" instead of team names
+**Possible causes:**
+1. Issues don't have teams assigned in Jira
+2. Atlassian Team field not detected (check logs for `"Found Atlassian Team field"`)
+3. Your Jira instance uses a different team field structure
+
+**Solution:**
+- Verify issues have teams assigned in Jira UI (check the "Team" field)
+- Look for the log message: `"Found Atlassian Team field: Team (ID: customfield_12000)"`
+- If using a custom team field, contact support to modify the `get_team_field_id()` method
+
 ---
 
 ## Script Configuration
@@ -159,6 +201,7 @@ The Python script uses these environment variables (configured in the workflow):
 | `JIRA_URL` | Workflow | Jira instance URL |
 | `JIRA_EMAIL` | Secret | Jira user email |
 | `JIRA_API_TOKEN` | Secret | Jira API token |
+| `JIRA_JQL` | Workflow/Optional | JQL query to filter bugs (see below) |
 | `AWS_REGION` | Workflow | AWS region (us-east-1) |
 | `BEDROCK_MODEL_ID` | Workflow | Claude model ID |
 | `AWS_PROFILE` | Auto (OIDC) | Handled by OIDC auth |
@@ -167,21 +210,35 @@ The Python script uses these environment variables (configured in the workflow):
 
 ## Customizing the JQL Query
 
-To modify which bugs are fetched, edit `jira_bug_summarizer.py:354`:
+To modify which bugs are fetched, set the `JIRA_JQL` environment variable in the workflow file (`.cloudbees/workflows/jira-bug-report.yaml`):
 
-```python
-# Current query
-jql = 'labels = qa_automation AND type = Bug AND status != Done AND status != Rejected'
+```yaml
+env:
+  JIRA_URL: https://cloudbees.atlassian.net
+  JIRA_JQL: "labels = qa_automation AND type = Bug AND status != Done AND status != Rejected"
+  AWS_REGION: us-east-1
+  BEDROCK_MODEL_ID: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+```
 
-# Examples:
+**Example JQL queries:**
+
+```yaml
 # All open bugs in a project
-jql = 'project = MYPROJECT AND type = Bug AND status in (Open, "In Progress")'
+JIRA_JQL: "project = MYPROJECT AND type = Bug AND status in (Open, 'In Progress')"
 
 # High priority bugs
-jql = 'type = Bug AND priority in (Highest, High) AND status != Done'
+JIRA_JQL: "type = Bug AND priority in (Highest, High) AND status != Done"
 
 # Bugs older than 30 days
-jql = 'type = Bug AND created <= -30d AND status != Done'
+JIRA_JQL: "type = Bug AND created <= -30d AND status != Done"
+
+# Specific team's bugs
+JIRA_JQL: "Team = 'CBP Ninja' AND type = Bug AND status != Done"
+```
+
+**Note:** If `JIRA_JQL` is not set, the script defaults to:
+```
+"labels = qa_automation AND type = Bug AND status != Done AND status != Rejected"
 ```
 
 ---
@@ -204,10 +261,60 @@ jql = 'type = Bug AND created <= -30d AND status != Done'
 
 ---
 
+## Report Features
+
+### Text Report Structure
+The generated `bug_report.txt` contains:
+
+1. **Main Bug Table**
+   - Ticket ID, Days Open (with emoji indicators), Last Update
+   - Status, Priority, **Teams** (from Atlassian Team field), Assignee
+   - Automatically sorted by priority (Highest to Lowest)
+
+2. **Comment Summaries Table**
+   - Separate table below the main table
+   - AI-generated summaries for each ticket
+   - Includes Root Cause, Solutions, Current Status, Action Items
+   - Row separators for easy readability
+
+3. **Links Section**
+   - Clickable links to all tickets
+
+4. **Statistics Section**
+   - Total bugs count
+   - Breakdown by age: Critical (90+ days), Aging (31-90), Active (8-30), Recent (0-7)
+
+### JSON Report Structure
+The `bug_report.json` includes:
+```json
+{
+  "bug_key": "CBP-12345",
+  "team": {
+    "team_name": "CBP Ninja",      // From Atlassian Team field
+    "components": [],
+    "labels": ["qa_automation"]
+  },
+  "comments": {
+    "count": 4,
+    "summary": "AI-generated summary...",  // Full AI analysis
+    "details": [...]                       // All comment details
+  }
+}
+```
+
+This structured data is ideal for:
+- Slack integration (custom formatting)
+- Data analysis and reporting
+- Historical tracking
+- Team metrics
+
+---
+
 ## Next Steps
 
 After successful setup:
 1. Monitor the first few automated runs
-2. Share the reports with your team
+2. Share the reports with your team (Teams column helps with team-specific filtering)
 3. Consider adding notifications (email, Slack) for report delivery
-4. Archive reports for historical analysis
+4. Archive reports for historical analysis and team performance tracking
+5. Use the JSON output for custom integrations or dashboards
